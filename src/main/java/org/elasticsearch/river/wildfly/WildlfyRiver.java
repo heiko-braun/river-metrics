@@ -58,7 +58,7 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
         this.client = client;
         this.threadPool = threadPool;
 
-        logger.info("Creating wildfly stream river");
+        logger.info("Creating wildfly metric stream");
 
         indexName = riverName.name();
         typeName = "metrics";
@@ -70,7 +70,7 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
     public void start() {
 
 
-        /*try {
+        try {
             ModelNode op = new ModelNode();
             op.get("operation").set("read-attribute");
             op.get("address").setEmptyList();
@@ -88,7 +88,7 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
             logger.info(response);
         } catch (IOException e) {
             logger.error("Startup failed ", e);
-        }  */
+        }
 
 
         /*try {
@@ -118,7 +118,7 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
     @Override
     public void close() {
         this.closed = true;
-        logger.info("closing wildfly stream river");
+        logger.info("closing wildfly metric stream");
     }
 
 }
