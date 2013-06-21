@@ -211,37 +211,18 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
 
 
                     ModelNode response = controllerClient.execute(op);
-
                     ModelNode result = response.get("result");
-
-                    System.out.println(result);
-
+                    //System.out.println(result);
 
                     ModelNode heap = result.get("heap-memory-usage");
 
                     XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
                     builder.field("@source", "wildfly-import");
+                    //builder.field("@tags", builder.startArray().endArray());
                     builder.field("@timestamp", timeFormatter.print(new DateTime()));
                     builder.field("@message", result.toString());
                     builder.field("@type", "vm");
                     builder.field("@source_path", op.get("address").toString());
-
-
-                    /*
-                        logstash sample
-                    {
-                    "@source":"irc://irc.freenode.net:6667/#fusefabric",
-                    "@tags":[],
-                    "@fields":{"channel":"#fusefabric","nick":"hbraun"},
-                    "@timestamp":"2013-06-21T18:39:19.315Z",
-                                  2013-06-21T21:04:41+02:00
-                    "@source_host":"irc.freenode.net",
-                    "@source_path":"/",
-                    "@message":"as",
-                    "@type":"irc"
-                    }
-
-                     */
 
                     builder.startObject("@fields");
                         builder.field("used", heap.get("used").asLong());
@@ -250,12 +231,12 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
 
                     builder.endObject();
 
-                    IndexResponse idx = client.prepareIndex(indexName, typeName, UUID.randomBase64UUID().toString())
+                    IndexResponse idx = client.prepareIndex(indexName, typeName)
                             .setSource(builder)
                             .execute()
                             .actionGet();
 
-                    System.out.println(">>"+idx.getId());
+                    //System.out.println(">>"+idx.getId());
 
 
                 } catch (IOException e) {
