@@ -22,6 +22,7 @@ package org.elasticsearch.river.wildfly;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.river.AbstractRiverComponent;
 import org.elasticsearch.river.River;
@@ -39,7 +40,10 @@ import javax.security.auth.callback.UnsupportedCallbackException;
 import javax.security.sasl.RealmCallback;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledFuture;
 
 /**
  *
@@ -49,7 +53,6 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
     private final ThreadPool threadPool;
 
     private final Client client;
-
 
     private final String indexName;
 
@@ -62,6 +65,9 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
     private int port;
     private String host;
     private String password;
+    private ScheduledFuture<?> work;
+    private int scheduleSeconds;
+    private ModelControllerClient controllerClient;
 
     @SuppressWarnings({"unchecked"})
     @Inject
@@ -116,18 +122,16 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
             op.get("address").setEmptyList();
             op.get("name").set("release-version");
 
-            ModelControllerClient client = createClient(
-                    InetAddress.getByName(host),
-                    port,
-                    username,
-                    password
-            );
+            this.controllerClient = createDefaultClient();
 
-            ModelNode returnVal = client.execute(op);
+            ModelNode response = controllerClient.execute(op);
 
-            String response = returnVal.get("result").toString();
+            String result = response.get("result").toString();
 
-            logger.info(response);
+            logger.info("Connected to Wildfly "+ result);
+
+            work = scheduleWork();
+
         } catch (IOException e) {
             logger.error("Startup failed ", e);
         }
@@ -156,6 +160,65 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
         currentRequest = client.prepareBulk();      */
     }
 
+    private ModelControllerClient createDefaultClient() {
+
+        ModelControllerClient client = null;
+        try {
+
+            client = createClient(
+                                InetAddress.getByName(host),
+                                port,
+                                username,
+                                password
+                        );
+
+
+        } catch (UnknownHostException e) {
+            throw new RuntimeException("Unknown host", e);
+        }
+
+        return client;
+    }
+
+    private ScheduledFuture<?> scheduleWork() {
+        ScheduledFuture<?> future = threadPool.scheduleWithFixedDelay(new Runnable() {
+            @Override
+            public void run() {
+
+                // re-create if necessary
+                if(controllerClient == null)
+                {
+                    controllerClient = createDefaultClient();
+                }
+
+                try {
+
+                    // > /core-service=platform-mbean/type=memory:read-resource(include-runtime=true)
+
+                    ModelNode op = new ModelNode();
+                    op.get("operation").set("read-resource");
+                    op.get("address").add("core-service","platform-mbean");
+                    op.get("address").add("type", "memory");
+                    op.get("include-runtime").set("true");
+
+
+                    ModelNode response = controllerClient.execute(op);
+
+                    String result = response.get("result").toString();
+
+                    System.out.println(result);
+
+                } catch (IOException e) {
+                    logger.error("Failed to execute operation", e);
+                }
+
+
+            }
+        }, TimeValue.timeValueSeconds(scheduleSeconds));
+
+        return future;
+    }
+
     private void parseConfig() {
         if (settings.settings().containsKey("wildfly")) {
             Map<String, Object> wildflySettings = (Map<String, Object>) settings.settings().get("wildfly");
@@ -164,6 +227,7 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
             this.password = XContentMapValues.nodeStringValue(wildflySettings.get("user"), null);
             this.host = XContentMapValues.nodeStringValue(wildflySettings.get("host"), null);
             this.port = XContentMapValues.nodeIntegerValue(wildflySettings.get("port"), 9999);
+            this.scheduleSeconds = XContentMapValues.nodeIntegerValue(wildflySettings.get("schedule"), 1);
 
         }
         else
@@ -175,6 +239,13 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
     @Override
     public void close() {
         this.closed = true;
+        if(this.work !=null)
+        {
+            this.work.cancel(true);
+            this.work = null;
+        }
+
+
         logger.info("closing wildfly metric stream");
     }
 
