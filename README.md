@@ -21,7 +21,7 @@ Creating the wildfly river can be done using:
 ```sh
 curl -XPUT localhost:9200/_river/wildfly_river/_meta -d '
 {
-    "type" : "wildfly",
+    "type" : "wildfly-metrics",
     "wildfly" : {
             "url" : "localhost:9990/management"
         }
