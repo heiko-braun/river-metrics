@@ -24,9 +24,10 @@ curl -XPUT localhost:9200/_river/wildfly_river/_meta -d '
     "type" : "wildfly-metrics",
     "wildfly" : {
             "host" : "localhost",
-            "port" : "9999";
+            "port" : "9999",
             "user" : "...",
-            "password" : "..."
+            "password" : "...",
+            "schedule" : " ... (seconds)"
         }
     },
     "index" : {
