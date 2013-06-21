@@ -20,9 +20,14 @@
 package org.elasticsearch.river.wildfly;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.river.AbstractRiverComponent;
 import org.elasticsearch.river.River;
@@ -41,8 +46,9 @@ import javax.security.sasl.RealmCallback;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 
 /**
@@ -54,11 +60,10 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
 
     private final Client client;
 
-    private final String indexName;
+    private String indexName;
+    private String typeName;
 
-    private final String typeName;
-
-    private volatile BulkRequestBuilder currentRequest;
+    private final SimpleDateFormat dateFormat;
 
     private volatile boolean closed = false;
     private String username;
@@ -80,6 +85,8 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
 
         indexName = riverName.name();
         typeName = "metrics";
+
+        dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'");
 
     }
 
@@ -204,9 +211,31 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
 
                     ModelNode response = controllerClient.execute(op);
 
-                    String result = response.get("result").toString();
+                    ModelNode result = response.get("result");
 
                     System.out.println(result);
+
+
+
+
+                    XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                    builder.field("@timestamp", dateFormat.format(new Date()));
+
+                    ModelNode heap = result.get("heap-memory-usage");
+                    builder.startObject("@heap-memory-usage");
+                        builder.field("@used", heap.get("used").asLong());
+                        builder.field("@max", heap.get("max").asLong());
+                    builder.endObject();
+
+                    builder.endObject();
+
+                    IndexResponse idx = client.prepareIndex(indexName, typeName, UUID.randomBase64UUID().toString())
+                            .setSource(builder)
+                            .execute()
+                            .actionGet();
+
+                    System.out.println(">>"+idx.getId());
+
 
                 } catch (IOException e) {
                     logger.error("Failed to execute operation", e);
@@ -232,7 +261,17 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
         }
         else
         {
-            logger.error("wildfly plugin configuration is missing");
+            logger.error("invalid wildfly plugin configuration");
+        }
+
+        if (settings.settings().containsKey("index")) {
+            Map<String, Object> indexSettings = (Map<String, Object>) settings.settings().get("index");
+            indexName = XContentMapValues.nodeStringValue(indexSettings.get("index"), riverName.name());
+            typeName = XContentMapValues.nodeStringValue(indexSettings.get("type"), "status");
+        }
+        else
+        {
+            logger.error("invalid wildfly plugin configuration");
         }
     }
 
