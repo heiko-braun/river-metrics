@@ -22,6 +22,7 @@ package org.elasticsearch.river.wildfly;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.river.AbstractRiverComponent;
 import org.elasticsearch.river.River;
 import org.elasticsearch.river.RiverName;
@@ -30,8 +31,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.as.controller.client.ModelControllerClient;
 import org.jboss.dmr.ModelNode;
 
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.CallbackHandler;
+import javax.security.auth.callback.NameCallback;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.callback.UnsupportedCallbackException;
+import javax.security.sasl.RealmCallback;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Map;
 
 /**
  *
@@ -50,6 +58,10 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
     private volatile BulkRequestBuilder currentRequest;
 
     private volatile boolean closed = false;
+    private String username;
+    private int port;
+    private String host;
+    private String password;
 
     @SuppressWarnings({"unchecked"})
     @Inject
@@ -66,9 +78,37 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
     }
 
 
+    static ModelControllerClient createClient(
+            final InetAddress host, final int port,
+            final String username, final String password) {
+
+        final CallbackHandler callbackHandler = new CallbackHandler() {
+
+            public void handle(Callback[] callbacks) throws IOException, UnsupportedCallbackException {
+                for (Callback current : callbacks) {
+                    if (current instanceof NameCallback) {
+                        NameCallback ncb = (NameCallback) current;
+                        ncb.setName(username);
+                    } else if (current instanceof PasswordCallback) {
+                        PasswordCallback pcb = (PasswordCallback) current;
+                        pcb.setPassword(password.toCharArray());
+                    } else if (current instanceof RealmCallback) {
+                        RealmCallback rcb = (RealmCallback) current;
+                        rcb.setText(rcb.getDefaultText());
+                    } else {
+                        throw new UnsupportedCallbackException(current);
+                    }
+                }
+            }
+        };
+
+        return ModelControllerClient.Factory.create(host, port, callbackHandler);
+    }
+
     @Override
     public void start() {
 
+        parseConfig();
 
         try {
             ModelNode op = new ModelNode();
@@ -76,9 +116,11 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
             op.get("address").setEmptyList();
             op.get("name").set("release-version");
 
-            ModelControllerClient client = ModelControllerClient.Factory.create(
-                    InetAddress.getByName("127.0.0.1"),
-                    9999
+            ModelControllerClient client = createClient(
+                    InetAddress.getByName(host),
+                    port,
+                    username,
+                    password
             );
 
             ModelNode returnVal = client.execute(op);
@@ -89,7 +131,6 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
         } catch (IOException e) {
             logger.error("Startup failed ", e);
         }
-
 
         /*try {
 
@@ -113,6 +154,22 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
             }
         }
         currentRequest = client.prepareBulk();      */
+    }
+
+    private void parseConfig() {
+        if (settings.settings().containsKey("wildfly")) {
+            Map<String, Object> wildflySettings = (Map<String, Object>) settings.settings().get("wildfly");
+
+            this.username = XContentMapValues.nodeStringValue(wildflySettings.get("user"), null);
+            this.password = XContentMapValues.nodeStringValue(wildflySettings.get("user"), null);
+            this.host = XContentMapValues.nodeStringValue(wildflySettings.get("host"), null);
+            this.port = XContentMapValues.nodeIntegerValue(wildflySettings.get("port"), 9999);
+
+        }
+        else
+        {
+            logger.error("wildfly plugin configuration is missing");
+        }
     }
 
     @Override

@@ -23,7 +23,10 @@ curl -XPUT localhost:9200/_river/wildfly_river/_meta -d '
 {
     "type" : "wildfly-metrics",
     "wildfly" : {
-            "url" : "localhost:9990/management"
+            "host" : "localhost",
+            "port" : "9999";
+            "user" : "...",
+            "password" : "..."
         }
     },
     "index" : {
@@ -42,7 +45,7 @@ Remove the river
 If you need to stop the Wildfly river, you have to remove it:
 
 ```sh
-curl -XDELETE http://localhost:9200/_river/wildlfy_river/
+curl -XDELETE http://localhost:9200/_river/wildfly_river/
 ```
 
 
