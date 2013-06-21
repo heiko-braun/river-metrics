@@ -27,6 +27,11 @@ import org.elasticsearch.river.River;
 import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiverSettings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.jboss.as.controller.client.ModelControllerClient;
+import org.jboss.dmr.ModelNode;
+
+import java.io.IOException;
+import java.net.InetAddress;
 
 /**
  *
@@ -53,7 +58,7 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
         this.client = client;
         this.threadPool = threadPool;
 
-        logger.info("Creating wildlfy stream river");
+        logger.info("Creating wildfly stream river");
 
         indexName = riverName.name();
         typeName = "metrics";
@@ -63,6 +68,28 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
 
     @Override
     public void start() {
+
+
+        /*try {
+            ModelNode op = new ModelNode();
+            op.get("operation").set("read-attribute");
+            op.get("address").setEmptyList();
+            op.get("name").set("release-version");
+
+            ModelControllerClient client = ModelControllerClient.Factory.create(
+                    InetAddress.getByName("127.0.0.1"),
+                    9999
+            );
+
+            ModelNode returnVal = client.execute(op);
+
+            String response = returnVal.get("result").toString();
+
+            logger.info(response);
+        } catch (IOException e) {
+            logger.error("Startup failed ", e);
+        }  */
+
 
         /*try {
 

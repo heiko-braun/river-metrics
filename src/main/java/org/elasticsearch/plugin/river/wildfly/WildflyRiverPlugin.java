@@ -35,15 +35,15 @@ public class WildflyRiverPlugin extends AbstractPlugin {
 
     @Override
     public String name() {
-        return "river-wildfly";
+        return "wildfly-metrics";
     }
 
     @Override
     public String description() {
-        return "River Wildfly Plugin";
+        return "Wildfly Metrics Plugin";
     }
 
     public void onModule(RiversModule module) {
-        module.registerRiver("wildfly", WildlfyRiverModule.class);
+        module.registerRiver("wildfly-metrics", WildlfyRiverModule.class);
     }
 }

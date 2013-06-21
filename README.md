@@ -4,7 +4,7 @@ Wildfly River Plugin for ElasticSearch
 The Wildfly River plugin allows index wildfly metrics in ES
 [Elasticsearch rivers feature](http://www.elasticsearch.org/guide/reference/river/).
 
-In order to install the plugin, simply run: `bin/plugin -install org.wildfly/river-wildfly-metrics/1.0.0`.
+In order to install the plugin, simply run: `bin/plugin -install org.wildfly/river-wildfly-metrics/1.0.0-SNAPSHOT`.
 
     ---------------------------------------------------
     | Wildfly Plugin          | ElasticSearch         |
