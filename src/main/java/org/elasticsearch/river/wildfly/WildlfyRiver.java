@@ -19,12 +19,12 @@
 
 package org.elasticsearch.river.wildfly;
 
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -46,7 +46,6 @@ import javax.security.sasl.RealmCallback;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
@@ -59,11 +58,11 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
     private final ThreadPool threadPool;
 
     private final Client client;
+    private final org.elasticsearch.common.joda.time.format.DateTimeFormatter timeFormatter;
 
     private String indexName;
     private String typeName;
 
-    private final SimpleDateFormat dateFormat;
 
     private volatile boolean closed = false;
     private String username;
@@ -86,7 +85,9 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
         indexName = riverName.name();
         typeName = "metrics";
 
-        dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'");
+        //dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'");
+
+        timeFormatter = ISODateTimeFormat.dateTimeNoMillis();
 
     }
 
@@ -216,15 +217,35 @@ public class WildlfyRiver extends AbstractRiverComponent implements River {
                     System.out.println(result);
 
 
-
+                    ModelNode heap = result.get("heap-memory-usage");
 
                     XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-                    builder.field("@timestamp", dateFormat.format(new Date()));
+                    builder.field("@source", "wildfly-import");
+                    builder.field("@timestamp", timeFormatter.print(new DateTime()));
+                    builder.field("@message", result.toString());
+                    builder.field("@type", "vm");
+                    builder.field("@source_path", op.get("address").toString());
 
-                    ModelNode heap = result.get("heap-memory-usage");
-                    builder.startObject("@heap-memory-usage");
-                        builder.field("@used", heap.get("used").asLong());
-                        builder.field("@max", heap.get("max").asLong());
+
+                    /*
+                        logstash sample
+                    {
+                    "@source":"irc://irc.freenode.net:6667/#fusefabric",
+                    "@tags":[],
+                    "@fields":{"channel":"#fusefabric","nick":"hbraun"},
+                    "@timestamp":"2013-06-21T18:39:19.315Z",
+                                  2013-06-21T21:04:41+02:00
+                    "@source_host":"irc.freenode.net",
+                    "@source_path":"/",
+                    "@message":"as",
+                    "@type":"irc"
+                    }
+
+                     */
+
+                    builder.startObject("@fields");
+                        builder.field("used", heap.get("used").asLong());
+                        builder.field("max", heap.get("max").asLong());
                     builder.endObject();
 
                     builder.endObject();
